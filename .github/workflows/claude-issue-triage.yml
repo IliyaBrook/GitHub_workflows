@@ -63,7 +63,7 @@ jobs:
             *Written by Claude Sonnet via [Claude Code](https://claude.com/claude-code)*
 
           claude_args: |
-            --max-turns 6
+#            --max-turns 15
             --allowedTools "Read,GlobTool,GrepTool,Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(wc:*),Bash(head:*),Bash(tree:*),Bash(gh issue list:*),Bash(gh issue view:*)"
 
       - name: Fetch Claude comment for Telegram
