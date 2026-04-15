@@ -41,7 +41,7 @@ jobs:
             6. Assess priority: critical, high, medium, or low
             7. Check if there are similar existing issues
 
-            Post your analysis as a comment on the issue using the following structure:
+            Post your analysis as a comment on issue #${{ github.event.issue.number }} using the `gh issue comment` command. Use the following structure:
 
             ## Issue Triage
 
@@ -63,7 +63,7 @@ jobs:
             *Written by Claude Sonnet via [Claude Code](https://claude.com/claude-code)*
 
           claude_args: |
-            --allowedTools "Read,GlobTool,GrepTool,Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(wc:*),Bash(head:*),Bash(tree:*),Bash(gh issue list:*),Bash(gh issue view:*)"
+            --allowedTools "Read,GlobTool,GrepTool,Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(wc:*),Bash(head:*),Bash(tree:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue comment:*)"
 
       - name: Fetch Claude comment for Telegram
         if: success()
