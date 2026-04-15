@@ -62,6 +62,9 @@ jobs:
             *This is an automated triage comment. A maintainer will review this issue and may provide further guidance.*
             *Written by Claude Sonnet via [Claude Code](https://claude.com/claude-code)*
 
+          claude_args: |
+            --allowedTools "Read,Glob,Grep,WebSearch,WebFetch,Bash,Agent,TodoWrite,NotebookRead,LSP"
+
       - name: Fetch Claude comment for Telegram
         if: success()
         id: fetch_comment

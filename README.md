@@ -30,6 +30,41 @@ Sends real-time Telegram messages when activity happens in your repository:
 
 **Setup requires two repository secrets** (see instructions below).
 
+---
+
+### Claude Issue Triage — `claude-issue-triage.yml`
+
+Uses the official Anthropic workflow action [`anthropics/claude-code-action@v1`](https://github.com/anthropics/claude-code-action) to automatically analyze every new issue with Claude AI. When an issue is opened, Claude will:
+
+- Read the project README and explore the codebase for context
+- Classify the issue (bug / feature request / question / other)
+- Assess priority (critical / high / medium / low) and feasibility
+- Suggest a high-level implementation plan with affected files
+- Check for similar existing issues
+- Post the full triage analysis as a comment on the issue
+- Send the analysis summary to your Telegram bot
+
+> **No API key required!** This action officially supports authentication with a Claude Max subscription — no need to pay for API credits separately.
+
+**Setup requires three repository secrets:** `TELEGRAM_CHAT_ID`, `TELEGRAM_TOKEN` (same as Telegram Notifications above), and `CLAUDE_CODE_OAUTH_TOKEN` (see setup below).
+
+## Setting Up Claude Code OAuth Token
+
+1. Make sure Claude Code is up to date:
+   ```bash
+   claude update
+   ```
+2. Run the token setup command:
+   ```bash
+   claude setup-token
+   ```
+3. Authenticate with your Claude account in the browser
+4. Copy the token that is displayed
+5. In your repository, go to **Settings** → **Secrets and variables** → **Actions**
+6. Click **New repository secret**, name it `CLAUDE_CODE_OAUTH_TOKEN`, and paste the token
+
+> **Note:** This token works with a Claude Max subscription. You do not need a separate Anthropic API key.
+
 ## Setting Up Telegram Notifications
 
 ### Step 1 — Get your Telegram Chat ID
