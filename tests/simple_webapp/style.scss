@@ -1,0 +1,100 @@
+$bg: #1a1a2e;
+$card: #16213e;
+$accent: #0f3460;
+$text: #e4e4e4;
+$highlight: #e94560;
+
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	font-family: 'Segoe UI', sans-serif;
+	background: $bg;
+	color: $text;
+	min-height: 100vh;
+	display: flex;
+	justify-content: center;
+	align-items: flex-start;
+	padding: 60px 20px;
+}
+
+.app {
+	background: $card;
+	border-radius: 12px;
+	padding: 30px;
+	width: 100%;
+	max-width: 500px;
+	
+	h1 {
+		text-align: center;
+		margin-bottom: 20px;
+		color: $highlight;
+	}
+}
+
+.input-group {
+	display: flex;
+	gap: 10px;
+	margin-bottom: 20px;
+	
+	input {
+		flex: 1;
+		padding: 10px 14px;
+		border: 1px solid $accent;
+		border-radius: 8px;
+		background: $bg;
+		color: $text;
+		font-size: 14px;
+		outline: none;
+		
+		&:focus {
+			border-color: $highlight;
+		}
+	}
+	
+	button {
+		padding: 10px 20px;
+		background: $highlight;
+		color: white;
+		border: none;
+		border-radius: 8px;
+		cursor: pointer;
+		font-size: 14px;
+		
+		&:hover {
+			opacity: 0.85;
+		}
+	}
+}
+
+#notesList {
+	list-style: none;
+	
+	li {
+		background: $bg;
+		padding: 12px 14px;
+		border-radius: 8px;
+		margin-bottom: 8px;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		
+		.delete-btn {
+			background: none;
+			border: none;
+			color: $highlight;
+			cursor: pointer;
+			font-size: 18px;
+		}
+	}
+}
+
+.counter {
+	text-align: center;
+	margin-top: 16px;
+	color: #888;
+	font-size: 13px;
+}
