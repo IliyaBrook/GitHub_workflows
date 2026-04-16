@@ -100,14 +100,87 @@ Uses the official Anthropic workflow action [`anthropics/claude-code-action@v1`]
 4. Copy `telegram-notify.yml` into your project's `.github/workflows/` directory
 5. Push to your repository — you're all set!
 
-## Quick Start
+## Usage
+
+There are two ways to use these workflows in your project:
+
+### Option 1 — Reusable workflows (recommended)
+
+All workflows in this repository support [`workflow_call`](https://docs.github.com/en/actions/sharing-automations/reusing-workflows), which means you don't need to copy each workflow file individually. Instead, copy a single caller file into your project and reference the workflows directly from this repository.
+
+1. Copy `global-workflows.yml` into your project's `.github/workflows/` directory
+2. That's it — your project will use the workflows hosted in this repository
+
+```yaml
+# .github/workflows/global-workflows.yml
+name: Telegram / Stale Issues / Claude Triage
+
+on:
+  issues:
+    types: [opened, labeled, closed]
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created]
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  telegram-notifications:
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+    uses: IliyaBrook/GitHub_workflows/.github/workflows/telegram-notify.yml@master
+    secrets: inherit
+
+  stale-issues:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      issues: write
+      pull-requests: write
+    uses: IliyaBrook/GitHub_workflows/.github/workflows/stale-issues.yml@master
+    secrets: inherit
+
+  claude-issue-triage:
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: IliyaBrook/GitHub_workflows/.github/workflows/claude-issue-triage.yml@master
+    secrets: inherit
+```
+
+The `secrets: inherit` directive passes your repository secrets to the called workflows automatically.
+
+> **Important:** You still need to add the required secrets (`TELEGRAM_CHAT_ID`, `TELEGRAM_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`) to **each repository** that uses these workflows. `secrets: inherit` forwards secrets from your repo to the reusable workflow — it does not pull them from this repository.
+
+**Benefits of this approach:**
+- You only maintain one small file in your project
+- When workflows are updated in this repository, your project picks up the changes automatically
+- No need to keep workflow copies in sync across multiple repositories
+
+### Option 2 — Copy workflow files directly
+
+If you prefer full control over the workflow logic, copy the individual `.yml` files from `.github/workflows/` into your own project and modify them as needed.
 
 ```bash
-# Copy a workflow into your project
+# Copy a specific workflow into your project
 cp <path-to-this-repo>/.github/workflows/telegram-notify.yml <your-project>/.github/workflows/
 ```
 
-Or simply copy the raw file contents from GitHub into your own `.github/workflows/` directory.
+### Option 3 — Fork and self-host
+
+If you want to use reusable workflows but host them yourself:
+
+1. Fork this repository (or create your own and copy the workflow files)
+2. In your caller workflow, update the `uses` paths to point to your repository:
+
+```yaml
+# Change this:
+uses: IliyaBrook/GitHub_workflows/.github/workflows/telegram-notify.yml@master
+# To this:
+uses: <your-username>/<your-repo>/.github/workflows/telegram-notify.yml@master
+```
 
 ## Contributing
 
