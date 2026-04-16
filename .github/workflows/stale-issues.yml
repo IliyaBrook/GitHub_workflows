@@ -1,6 +1,7 @@
 name: Close Stale Issues
 
 on:
+  workflow_call:
   schedule:
     - cron: '0 9 * * *'
   workflow_dispatch:

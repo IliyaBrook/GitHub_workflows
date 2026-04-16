@@ -1,6 +1,7 @@
 name: Telegram Notifications
 
 on:
+  workflow_call:
   issues:
     types: [opened, labeled, closed]
   pull_request:
