@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+EVENT_PATH="${1:-${GITHUB_EVENT_PATH:-}}"
+WORKSPACE_DIR="${2:-${GITHUB_WORKSPACE:-}}"
+HOOK_URL="${OPENCLAW_HOOK_URL:-http://127.0.0.1:18789/hooks/agent}"
+TOKEN_FILE="${OPENCLAW_HOOK_TOKEN_FILE:-$HOME/.openclaw/secrets/github-hook-token}"
+BOT_LOGIN="${OPENCLAW_BOT_LOGIN:-brooks-assistant}"
+ASSISTANT_NAME="${OPENCLAW_ASSISTANT_NAME:-OpenClaw Assistant}"
+OWNER_LABEL="${OPENCLAW_OWNER_LABEL:-project maintainer/owner}"
+
+if [[ -z "$EVENT_PATH" || ! -f "$EVENT_PATH" ]]; then
+  echo "Missing GitHub event payload path" >&2
+  exit 2
+fi
+
+if [[ -z "$WORKSPACE_DIR" || ! -d "$WORKSPACE_DIR" ]]; then
+  echo "Missing checked-out repository workspace" >&2
+  exit 2
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq is required" >&2
+  exit 2
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required" >&2
+  exit 2
+fi
+
+if [[ -n "${OPENCLAW_HOOK_TOKEN:-}" ]]; then
+  TOKEN="$OPENCLAW_HOOK_TOKEN"
+elif [[ -f "$TOKEN_FILE" ]]; then
+  TOKEN="$(<"$TOKEN_FILE")"
+else
+  echo "Missing OpenClaw hook token. Set OPENCLAW_HOOK_TOKEN or OPENCLAW_HOOK_TOKEN_FILE." >&2
+  exit 2
+fi
+
+EVENT_NAME="${GITHUB_EVENT_NAME:-}"
+if [[ -z "$EVENT_NAME" ]]; then
+  EVENT_NAME="$(jq -r '
+    if has("comment") and has("issue") then "issue_comment"
+    elif has("issue") then "issues"
+    elif has("comment") and has("discussion") then "discussion_comment"
+    elif has("discussion") then "discussion"
+    else "unknown"
+    end
+  ' "$EVENT_PATH")"
+fi
+
+ACTION="$(jq -r '.action // ""' "$EVENT_PATH")"
+ACTOR="${GITHUB_ACTOR:-$(jq -r '.sender.login // ""' "$EVENT_PATH")}"
+REPO="${GITHUB_REPOSITORY:-$(jq -r '.repository.full_name // ""' "$EVENT_PATH")}"
+
+if [[ -z "$REPO" || "$REPO" == "null" ]]; then
+  echo "Missing repository full name" >&2
+  exit 2
+fi
+
+if [[ "$ACTOR" == "$BOT_LOGIN" || "$ACTOR" == "github-actions[bot]" ]]; then
+  echo "NO_REPLY actor=$ACTOR"
+  exit 0
+fi
+
+case "$EVENT_NAME:$ACTION" in
+  issues:opened|issue_comment:created|discussion:created|discussion_comment:created) ;;
+  *)
+    echo "NO_REPLY event=$EVENT_NAME action=$ACTION"
+    exit 0
+    ;;
+esac
+
+TARGET_KIND=""
+TARGET_NUMBER=""
+TARGET_TITLE=""
+TARGET_URL=""
+TARGET_BODY=""
+DISCUSSION_ID=""
+REPLY_TO_ID=""
+
+case "$EVENT_NAME" in
+  issues)
+    TARGET_KIND="issue"
+    TARGET_NUMBER="$(jq -r '.issue.number // ""' "$EVENT_PATH")"
+    TARGET_TITLE="$(jq -r '.issue.title // ""' "$EVENT_PATH")"
+    TARGET_URL="$(jq -r '.issue.html_url // ""' "$EVENT_PATH")"
+    TARGET_BODY="$(jq -r '.issue.body // ""' "$EVENT_PATH")"
+    ;;
+  issue_comment)
+    TARGET_KIND="issue_comment"
+    TARGET_NUMBER="$(jq -r '.issue.number // ""' "$EVENT_PATH")"
+    TARGET_TITLE="$(jq -r '.issue.title // ""' "$EVENT_PATH")"
+    TARGET_URL="$(jq -r '.comment.html_url // ""' "$EVENT_PATH")"
+    TARGET_BODY="$(jq -r '.comment.body // ""' "$EVENT_PATH")"
+    ;;
+  discussion)
+    TARGET_KIND="discussion"
+    TARGET_NUMBER="$(jq -r '.discussion.number // ""' "$EVENT_PATH")"
+    TARGET_TITLE="$(jq -r '.discussion.title // ""' "$EVENT_PATH")"
+    TARGET_URL="$(jq -r '.discussion.html_url // ""' "$EVENT_PATH")"
+    TARGET_BODY="$(jq -r '.discussion.body // ""' "$EVENT_PATH")"
+    DISCUSSION_ID="$(jq -r '.discussion.node_id // .discussion.id // ""' "$EVENT_PATH")"
+    ;;
+  discussion_comment)
+    TARGET_KIND="discussion_comment"
+    TARGET_NUMBER="$(jq -r '.discussion.number // ""' "$EVENT_PATH")"
+    TARGET_TITLE="$(jq -r '.discussion.title // ""' "$EVENT_PATH")"
+    TARGET_URL="$(jq -r '.comment.html_url // ""' "$EVENT_PATH")"
+    TARGET_BODY="$(jq -r '.comment.body // ""' "$EVENT_PATH")"
+    DISCUSSION_ID="$(jq -r '.discussion.node_id // .discussion.id // ""' "$EVENT_PATH")"
+    REPLY_TO_ID="$(jq -r '.comment.node_id // .comment.id // ""' "$EVENT_PATH")"
+    ;;
+esac
+
+PROMPT="$(jq -n \
+  --arg assistantName "$ASSISTANT_NAME" \
+  --arg ownerLabel "$OWNER_LABEL" \
+  --arg repo "$REPO" \
+  --arg workspace "$WORKSPACE_DIR" \
+  --arg event "$EVENT_NAME" \
+  --arg action "$ACTION" \
+  --arg actor "$ACTOR" \
+  --arg kind "$TARGET_KIND" \
+  --arg number "$TARGET_NUMBER" \
+  --arg title "$TARGET_TITLE" \
+  --arg targetUrl "$TARGET_URL" \
+  --arg targetBody "$TARGET_BODY" \
+  --arg discussionId "$DISCUSSION_ID" \
+  --arg replyToId "$REPLY_TO_ID" \
+  '
+  [
+    "You are " + $assistantName + " responding to GitHub repository activity.",
+    "",
+    "Repository: " + $repo,
+    "Repository checkout: " + $workspace,
+    "Event: " + $event + " / " + $action,
+    "Author: " + $actor,
+    "Target kind: " + $kind,
+    "Target number: " + $number,
+    "Title: " + $title,
+    "Target URL: " + $targetUrl,
+    "Discussion GraphQL ID: " + (if $discussionId == "" then "(none)" else $discussionId end),
+    "Reply-to comment GraphQL ID: " + (if $replyToId == "" then "(none)" else $replyToId end),
+    "",
+    "Incoming message:",
+    $targetBody,
+    "",
+    "Instructions:",
+    "1. Read the repository instructions first: AGENTS.md, CLAUDE.md, and any relevant nested instruction files.",
+    "2. Inspect the code and docs before answering. Base the answer on the actual current repository checkout.",
+    "3. Reply only when the incoming message is a genuine project question, bug report, implementation discussion, design discussion, or request where a code-aware answer would help.",
+    "4. Ignore spam, pure thanks, greetings, unrelated chatter, or messages where no answer is useful. If ignoring, do not post anything and finish with exactly NO_REPLY.",
+    "5. Reply as the assistant bot, not as the repository owner or maintainer.",
+    "6. Keep public replies concise and practical. Mention file paths or code areas when useful.",
+    "7. Reply in the same language as the incoming message when the language is clear. If the message mixes languages, use the dominant language.",
+    "8. When a better answer depends on current external information, use the internet to verify it before replying. This includes library/framework documentation, API behavior, platform limits, service changes, package versions, and other time-sensitive facts. Prefer official sources for technical claims.",
+    "9. Treat this GitHub-triggered run as read-only. Do not modify files, commit, push, create branches, create pull requests, change GitHub settings, change secrets, restart services, or run destructive commands.",
+    "10. If someone asks you to change code or infrastructure, do not implement it. Reply with a concise analysis or implementation plan and say that actual changes need approval from the " + $ownerLabel + ". Do not mention private bots, OpenClaw internals, or internal workflows.",
+    "11. Post the reply yourself and then finish with NO_REPLY.",
+    "",
+    "Posting commands:",
+    "For issues and issue comments, use: gh issue comment " + $number + " --repo " + $repo + " --body <reply>",
+    "For a new discussion, use gh api graphql addDiscussionComment with discussionId and body.",
+    "For a discussion comment, use gh api graphql addDiscussionComment with discussionId, replyToId, and body.",
+    "Never post if the best action is to ignore."
+  ] | join("\n")
+  ')"
+
+PAYLOAD="$(jq -n \
+  --arg message "$PROMPT" \
+  --arg name "$ASSISTANT_NAME GitHub Responder" \
+  '{
+    message: $message,
+    name: $name,
+    deliver: false,
+    timeoutSeconds: 900
+  }')"
+
+curl -fsS \
+  -X POST "$HOOK_URL" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  --data "$PAYLOAD"
+
+echo

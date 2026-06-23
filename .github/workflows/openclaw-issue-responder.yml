@@ -1,0 +1,68 @@
+name: OpenClaw Issue Responder
+
+on:
+  workflow_call:
+    inputs:
+      runner-labels:
+        description: JSON array of self-hosted runner labels.
+        required: false
+        type: string
+        default: '["self-hosted","openclaw"]'
+      responder-script:
+        description: Absolute path to openclaw-github-responder on the runner host.
+        required: false
+        type: string
+        default: /opt/openclaw/bin/openclaw-github-responder
+      bot-login:
+        description: GitHub login used by the assistant bot; events from this actor are skipped.
+        required: false
+        type: string
+        default: brooks-assistant
+      assistant-name:
+        description: Public assistant name used in the prompt.
+        required: false
+        type: string
+        default: OpenClaw Assistant
+      hook-url:
+        description: Local OpenClaw hook endpoint reachable from the runner host.
+        required: false
+        type: string
+        default: http://127.0.0.1:18789/hooks/agent
+      hook-token-file:
+        description: File containing the OpenClaw hook token on the runner host.
+        required: false
+        type: string
+        default: /opt/openclaw/secrets/github-hook-token
+      timeout-minutes:
+        description: Maximum job runtime.
+        required: false
+        type: number
+        default: 20
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: openclaw-issue-${{ github.event.issue.node_id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  respond:
+    if: github.actor != inputs.bot-login
+    runs-on: ${{ fromJSON(inputs.runner-labels) }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Wake ${{ inputs.assistant-name }}
+        env:
+          OPENCLAW_ASSISTANT_NAME: ${{ inputs.assistant-name }}
+          OPENCLAW_BOT_LOGIN: ${{ inputs.bot-login }}
+          OPENCLAW_HOOK_TOKEN_FILE: ${{ inputs.hook-token-file }}
+          OPENCLAW_HOOK_URL: ${{ inputs.hook-url }}
+        run: '"${{ inputs.responder-script }}" "$GITHUB_EVENT_PATH" "$GITHUB_WORKSPACE"'

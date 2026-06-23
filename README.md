@@ -50,6 +50,19 @@ Uses the official Anthropic workflow action [`anthropics/claude-code-action@v1`]
 
 **Setup requires three repository secrets:** `TELEGRAM_CHAT_ID`, `TELEGRAM_TOKEN` (same as Telegram Notifications above), and `CLAUDE_CODE_OAUTH_TOKEN` (see setup below).
 
+---
+
+### OpenClaw GitHub Responder — `openclaw-issue-responder.yml` / `openclaw-discussion-responder.yml`
+
+Uses a self-hosted runner on your OpenClaw server to wake a local OpenClaw assistant when Issues or Discussions need a code-aware public reply.
+
+- No inbound public port is required; the self-hosted runner connects outbound to GitHub.
+- The assistant reads the checked-out repository and replies in Issues or Discussions when useful.
+- The provided wrapper is read-only by prompt: it should not edit code, push commits, create PRs, or change repository/server settings.
+- Includes a server-side wrapper script at [`openclaw/openclaw-github-responder`](openclaw/openclaw-github-responder).
+
+**Setup:** see [OpenClaw GitHub Responder](docs/openclaw-responder.md).
+
 ## Setting Up Claude Code OAuth Token
 
 1. Make sure Claude Code is up to date:
