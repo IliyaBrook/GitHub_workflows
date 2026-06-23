@@ -107,7 +107,7 @@ jobs:
             ${{ github.event.comment.html_url }}
 
   notify-discussion:
-    if: github.event_name == 'discussion' && github.event.action == 'created' && github.actor != github.repository_owner
+    if: github.event_name == 'discussion' && github.event.action == 'created'
     runs-on: ubuntu-latest
     steps:
       - name: Send Telegram notification
@@ -125,7 +125,7 @@ jobs:
             ${{ github.event.discussion.html_url }}
 
   notify-discussion-comment:
-    if: github.event_name == 'discussion_comment' && github.event.action == 'created' && github.actor != github.repository_owner && github.actor != 'brooks-assistant'
+    if: github.event_name == 'discussion_comment' && github.event.action == 'created'
     runs-on: ubuntu-latest
     steps:
       - name: Send Telegram notification
