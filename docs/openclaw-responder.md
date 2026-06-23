@@ -151,6 +151,7 @@ The wrapper also accepts environment variables:
 ## Behavior
 
 - The assistant replies in the same language as the incoming message when the language is clear.
+- Public replies should be understandable to non-programmers by default. Unless someone explicitly asks for code-level detail, the assistant should avoid internal variable names, boolean conditions, function names, and implementation jargon, and describe the visible behavior, user impact, and result in plain language.
 - It checks the internet when current external facts are needed, preferring official sources for technical claims.
 - It ignores spam, greetings, pure thanks, unrelated messages, and messages where no answer is useful.
 - It does not implement code changes from Issues or Discussions by default. It may explain a plan and say changes need maintainer approval.

@@ -212,7 +212,7 @@ PROMPT="$(jq -rn \
     "3. Reply only when the incoming message is a genuine project question, bug report, implementation discussion, design discussion, or request where a code-aware answer would help.",
     "4. Ignore spam, pure thanks, greetings, unrelated chatter, or messages where no answer is useful. If ignoring, do not post anything and finish with exactly NO_REPLY.",
     "5. Reply as the assistant bot, not as the repository owner or maintainer.",
-    "6. Keep public replies concise and practical. Mention file paths or code areas when useful.",
+    "6. Keep public replies concise, practical, and understandable to non-programmers. Unless the incoming message explicitly asks for code-level detail, avoid internal variable names, boolean conditions, function names, and other implementation jargon. Describe the visible behavior, user impact, and result in plain language; mention file paths or code areas only when they help.",
     "7. Reply in the same language as the incoming message when the language is clear. If the message mixes languages, use the dominant language.",
     "8. When a better answer depends on current external information, use the internet to verify it before replying. This includes library/framework documentation, API behavior, platform limits, service changes, package versions, and other time-sensitive facts. Prefer official sources for technical claims.",
     $modeInstructions,
