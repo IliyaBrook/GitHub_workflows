@@ -27,6 +27,8 @@ Sends real-time Telegram messages when activity happens in your repository:
 - Issue closed
 - New pull request opened
 - New comment on an issue
+- New discussion opened
+- New comment on a discussion
 
 **Setup requires two repository secrets** (see instructions below).
 
@@ -121,6 +123,10 @@ on:
   pull_request:
     types: [opened]
   issue_comment:
+    types: [created]
+  discussion:
+    types: [created]
+  discussion_comment:
     types: [created]
   schedule:
     - cron: '0 9 * * *'

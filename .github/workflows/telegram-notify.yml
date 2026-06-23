@@ -8,6 +8,10 @@ on:
     types: [opened]
   issue_comment:
     types: [created]
+  discussion:
+    types: [created]
+  discussion_comment:
+    types: [created]
 
 jobs:
   notify-new-issue:
@@ -98,6 +102,42 @@ jobs:
             <b>New Comment</b> in <code>${{ github.repository }}</code>
 
             Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+            Author: ${{ github.event.comment.user.login }}
+
+            ${{ github.event.comment.html_url }}
+
+  notify-discussion:
+    if: github.event_name == 'discussion' && github.event.action == 'created' && github.actor != github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: html
+          message: |
+            <b>New Discussion</b> in <code>${{ github.repository }}</code>
+
+            #${{ github.event.discussion.number }}: ${{ github.event.discussion.title }}
+            Author: ${{ github.event.discussion.user.login }}
+
+            ${{ github.event.discussion.html_url }}
+
+  notify-discussion-comment:
+    if: github.event_name == 'discussion_comment' && github.event.action == 'created' && github.actor != github.repository_owner && github.actor != 'brooks-assistant'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: html
+          message: |
+            <b>New Discussion Comment</b> in <code>${{ github.repository }}</code>
+
+            Discussion #${{ github.event.discussion.number }}: ${{ github.event.discussion.title }}
             Author: ${{ github.event.comment.user.login }}
 
             ${{ github.event.comment.html_url }}

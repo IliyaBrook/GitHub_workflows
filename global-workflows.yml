@@ -7,6 +7,10 @@ on:
     types: [opened]
   issue_comment:
     types: [created]
+  discussion:
+    types: [created]
+  discussion_comment:
+    types: [created]
   schedule:
     - cron: '0 9 * * *'
   workflow_dispatch:
