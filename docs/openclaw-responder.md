@@ -128,7 +128,9 @@ jobs:
 | `assistant-name` | `OpenClaw Assistant` | Public assistant name included in the prompt. |
 | `hook-url` | `http://127.0.0.1:18789/hooks/agent` | OpenClaw hook endpoint reachable from the runner host. |
 | `hook-token-file` | `/opt/openclaw/secrets/github-hook-token` | File containing the hook token. |
-| `timeout-minutes` | `20` | Maximum workflow job runtime. |
+| `approved-actor-logins` | `IliyaBrook` | Comma-separated GitHub logins allowed to approve code-changing runs. |
+| `staging-update-command` | empty | Optional command to run after a successful approved code change. |
+| `timeout-minutes` | `60` | Maximum workflow job runtime. |
 
 ## Wrapper Environment
 
@@ -142,13 +144,18 @@ The wrapper also accepts environment variables:
 | `OPENCLAW_BOT_LOGIN` | GitHub login to suppress, usually your assistant account. |
 | `OPENCLAW_ASSISTANT_NAME` | Public assistant name. |
 | `OPENCLAW_OWNER_LABEL` | Public wording for who approves code changes, for example `project maintainer`. |
+| `OPENCLAW_APPROVED_ACTOR_LOGINS` | Comma-separated GitHub logins allowed to approve code-changing runs. |
+| `OPENCLAW_APPROVAL_PHRASE_REGEX` | Case-insensitive regex that marks a comment from an approved actor as approval. |
+| `OPENCLAW_STAGING_UPDATE_COMMAND` | Command the assistant should run after committing and pushing an approved change. |
 
 ## Behavior
 
 - The assistant replies in the same language as the incoming message when the language is clear.
 - It checks the internet when current external facts are needed, preferring official sources for technical claims.
 - It ignores spam, greetings, pure thanks, unrelated messages, and messages where no answer is useful.
-- It does not implement code changes from Issues or Discussions. It may explain a plan and say changes need maintainer approval.
+- It does not implement code changes from Issues or Discussions by default. It may explain a plan and say changes need maintainer approval.
+- It enters approved-change mode only for issue or discussion comments from `approved-actor-logins` that contain an explicit approval phrase such as `approved`, `приступай`, `разрешаю`, or `утверждаю`.
+- In approved-change mode, it must read the full thread first, make only the approved change, commit/push when appropriate, update staging when a command is configured, and report the result back to GitHub.
 - It skips events created by `bot-login` to avoid loops.
 
 ## Telegram Notifications

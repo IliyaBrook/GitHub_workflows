@@ -8,6 +8,9 @@ TOKEN_FILE="${OPENCLAW_HOOK_TOKEN_FILE:-$HOME/.openclaw/secrets/github-hook-toke
 BOT_LOGIN="${OPENCLAW_BOT_LOGIN:-brooks-assistant}"
 ASSISTANT_NAME="${OPENCLAW_ASSISTANT_NAME:-OpenClaw Assistant}"
 OWNER_LABEL="${OPENCLAW_OWNER_LABEL:-project maintainer/owner}"
+APPROVED_ACTOR_LOGINS="${OPENCLAW_APPROVED_ACTOR_LOGINS:-IliyaBrook}"
+APPROVAL_PHRASE_REGEX="${OPENCLAW_APPROVAL_PHRASE_REGEX:-(^|[[:space:][:punct:]])(approved|approve|приступай|разрешаю|утверждаю|можно[[:space:]]+(делать|менять)|можешь[[:space:]]+(делать|менять|приступать))($|[[:space:][:punct:]])}"
+STAGING_UPDATE_COMMAND="${OPENCLAW_STAGING_UPDATE_COMMAND:-}"
 
 if [[ -z "$EVENT_PATH" || ! -f "$EVENT_PATH" ]]; then
   echo "Missing GitHub event payload path" >&2
@@ -72,6 +75,20 @@ case "$EVENT_NAME:$ACTION" in
     ;;
 esac
 
+actor_is_approved() {
+  local login candidate
+  login="$1"
+  IFS=',' read -ra candidates <<<"$APPROVED_ACTOR_LOGINS"
+  for candidate in "${candidates[@]}"; do
+    candidate="${candidate#"${candidate%%[![:space:]]*}"}"
+    candidate="${candidate%"${candidate##*[![:space:]]}"}"
+    if [[ "$login" == "$candidate" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 TARGET_KIND=""
 TARGET_NUMBER=""
 TARGET_TITLE=""
@@ -114,9 +131,48 @@ case "$EVENT_NAME" in
     ;;
 esac
 
-PROMPT="$(jq -n \
+RUN_MODE="read-only"
+if [[ "$EVENT_NAME" == "issue_comment" || "$EVENT_NAME" == "discussion_comment" ]]; then
+  if actor_is_approved "$ACTOR" && grep -Eiq "$APPROVAL_PHRASE_REGEX" <<<"$TARGET_BODY"; then
+    RUN_MODE="approved-change"
+  fi
+fi
+
+if [[ "$RUN_MODE" == "approved-change" ]]; then
+  MODE_INSTRUCTIONS="$(jq -rn \
+    --arg ownerLabel "$OWNER_LABEL" \
+    --arg approvedActors "$APPROVED_ACTOR_LOGINS" \
+    --arg stagingCommand "$STAGING_UPDATE_COMMAND" \
+    '
+    [
+      "9. This run is APPROVED-CHANGE mode. The incoming comment was posted by an approved project author/owner (" + $approvedActors + ") and contains an explicit approval phrase.",
+      "10. Treat the incoming comment as authorization, not as the full task description. Before changing anything, fetch and read the full issue/discussion thread with gh so you understand the original request, prior assistant analysis, and approval context.",
+      "11. You may modify files in the repository checkout, run relevant tests, commit, and push as the assistant bot when needed to complete the approved task. Keep changes tightly scoped to the approved request.",
+      "12. Prefer a direct commit to the repository default branch for this approved staging workflow unless repository instructions explicitly require a pull request. Do not change GitHub settings, secrets, unrelated infrastructure, or destructive state.",
+      "13. If the approved request is ambiguous, risky, unrelated to the repository, or cannot be completed safely, ask a concise clarification in the GitHub thread instead of making changes.",
+      (if $stagingCommand == "" then
+        "14. No staging update command is configured. After committing/pushing, say in the GitHub reply that staging was not updated because no command is configured."
+       else
+        "14. After the code change is committed and pushed successfully, update the local staging server by running exactly this command: " + $stagingCommand
+       end),
+      "15. Post a final GitHub reply with the changed files or commit, tests/checks run, and staging update status. Then finish with NO_REPLY."
+    ] | join("\n")
+    ')"
+else
+  MODE_INSTRUCTIONS="$(jq -rn \
+    --arg ownerLabel "$OWNER_LABEL" \
+    '
+    [
+      "9. Treat this GitHub-triggered run as read-only. Do not modify files, commit, push, create branches, create pull requests, change GitHub settings, change secrets, restart services, or run destructive commands.",
+      "10. If someone asks you to change code or infrastructure, do not implement it. Reply with a concise analysis or implementation plan and say that actual changes need approval from the " + $ownerLabel + ". Do not mention private bots, OpenClaw internals, or internal workflows."
+    ] | join("\n")
+    ')"
+fi
+
+PROMPT="$(jq -rn \
   --arg assistantName "$ASSISTANT_NAME" \
   --arg ownerLabel "$OWNER_LABEL" \
+  --arg runMode "$RUN_MODE" \
   --arg repo "$REPO" \
   --arg workspace "$WORKSPACE_DIR" \
   --arg event "$EVENT_NAME" \
@@ -129,12 +185,14 @@ PROMPT="$(jq -n \
   --arg targetBody "$TARGET_BODY" \
   --arg discussionId "$DISCUSSION_ID" \
   --arg replyToId "$REPLY_TO_ID" \
+  --arg modeInstructions "$MODE_INSTRUCTIONS" \
   '
   [
     "You are " + $assistantName + " responding to GitHub repository activity.",
     "",
     "Repository: " + $repo,
     "Repository checkout: " + $workspace,
+    "Run mode: " + $runMode,
     "Event: " + $event + " / " + $action,
     "Author: " + $actor,
     "Target kind: " + $kind,
@@ -156,9 +214,8 @@ PROMPT="$(jq -n \
     "6. Keep public replies concise and practical. Mention file paths or code areas when useful.",
     "7. Reply in the same language as the incoming message when the language is clear. If the message mixes languages, use the dominant language.",
     "8. When a better answer depends on current external information, use the internet to verify it before replying. This includes library/framework documentation, API behavior, platform limits, service changes, package versions, and other time-sensitive facts. Prefer official sources for technical claims.",
-    "9. Treat this GitHub-triggered run as read-only. Do not modify files, commit, push, create branches, create pull requests, change GitHub settings, change secrets, restart services, or run destructive commands.",
-    "10. If someone asks you to change code or infrastructure, do not implement it. Reply with a concise analysis or implementation plan and say that actual changes need approval from the " + $ownerLabel + ". Do not mention private bots, OpenClaw internals, or internal workflows.",
-    "11. Post the reply yourself and then finish with NO_REPLY.",
+    $modeInstructions,
+    "16. Post the reply yourself and then finish with NO_REPLY.",
     "",
     "Posting commands:",
     "For issues and issue comments, use: gh issue comment " + $number + " --repo " + $repo + " --body <reply>",
@@ -171,11 +228,12 @@ PROMPT="$(jq -n \
 PAYLOAD="$(jq -n \
   --arg message "$PROMPT" \
   --arg name "$ASSISTANT_NAME GitHub Responder" \
+  --arg runMode "$RUN_MODE" \
   '{
     message: $message,
     name: $name,
     deliver: false,
-    timeoutSeconds: 900
+    timeoutSeconds: (if $runMode == "approved-change" then 3600 else 900 end)
   }')"
 
 curl -fsS \
