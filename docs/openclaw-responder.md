@@ -50,8 +50,13 @@ Store the same token on the runner host:
 ```bash
 sudo install -m 700 -d /opt/openclaw/secrets
 printf '%s' 'use-a-dedicated-random-token' | sudo tee /opt/openclaw/secrets/github-hook-token >/dev/null
+sudo chown -R "$USER:$USER" /opt/openclaw/secrets
 sudo chmod 600 /opt/openclaw/secrets/github-hook-token
 ```
+
+The token file must be readable by the OS user that runs the self-hosted runner.
+If the runner service runs as `github-runner`, use that user instead of `$USER`
+in the `chown` command.
 
 Restart OpenClaw Gateway if your config system requires it.
 
@@ -81,6 +86,9 @@ on:
     types: [created]
 
 jobs:
+  # No GitHub secrets are required for the OpenClaw responder jobs.
+  # These `with:` values are inputs passed to the reusable workflow; the reusable
+  # workflow turns them into OPENCLAW_* environment variables for the wrapper.
   issue-responder:
     if: github.event_name == 'issues' || github.event_name == 'issue_comment'
     permissions:
