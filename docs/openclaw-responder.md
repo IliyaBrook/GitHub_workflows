@@ -154,7 +154,7 @@ The wrapper also accepts environment variables:
 - It checks the internet when current external facts are needed, preferring official sources for technical claims.
 - It ignores spam, greetings, pure thanks, unrelated messages, and messages where no answer is useful.
 - It does not implement code changes from Issues or Discussions by default. It may explain a plan and say changes need maintainer approval.
-- It enters approved-change mode only for issue or discussion comments from `approved-actor-logins` that contain an explicit approval phrase such as `approved`, `приступай`, `разрешаю`, or `утверждаю`.
+- It enters approved-change mode only for issue comments from `approved-actor-logins` that contain an explicit approval phrase such as `approved`, `приступай`, `разрешаю`, or `утверждаю`.
 - In approved-change mode, it must read the full thread first, make only the approved change, commit/push when appropriate, update staging when a command is configured, and report the result back to GitHub.
 - It skips events created by `bot-login` to avoid loops.
 

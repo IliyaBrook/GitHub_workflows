@@ -132,7 +132,7 @@ case "$EVENT_NAME" in
 esac
 
 RUN_MODE="read-only"
-if [[ "$EVENT_NAME" == "issue_comment" || "$EVENT_NAME" == "discussion_comment" ]]; then
+if [[ "$EVENT_NAME" == "issue_comment" ]]; then
   if actor_is_approved "$ACTOR" && grep -Eiq "$APPROVAL_PHRASE_REGEX" <<<"$TARGET_BODY"; then
     RUN_MODE="approved-change"
   fi

@@ -33,21 +33,11 @@ on:
         required: false
         type: string
         default: /opt/openclaw/secrets/github-hook-token
-      approved-actor-logins:
-        description: Comma-separated GitHub logins allowed to approve code-changing runs.
-        required: false
-        type: string
-        default: IliyaBrook
-      staging-update-command:
-        description: Optional command to run after a successful approved code change.
-        required: false
-        type: string
-        default: ''
       timeout-minutes:
         description: Maximum job runtime.
         required: false
         type: number
-        default: 60
+        default: 20
 
 permissions:
   contents: read
@@ -73,8 +63,6 @@ jobs:
         env:
           OPENCLAW_ASSISTANT_NAME: ${{ inputs.assistant-name }}
           OPENCLAW_BOT_LOGIN: ${{ inputs.bot-login }}
-          OPENCLAW_APPROVED_ACTOR_LOGINS: ${{ inputs.approved-actor-logins }}
           OPENCLAW_HOOK_TOKEN_FILE: ${{ inputs.hook-token-file }}
           OPENCLAW_HOOK_URL: ${{ inputs.hook-url }}
-          OPENCLAW_STAGING_UPDATE_COMMAND: ${{ inputs.staging-update-command }}
         run: '"${{ inputs.responder-script }}" "$GITHUB_EVENT_PATH" "$GITHUB_WORKSPACE"'
