@@ -151,7 +151,7 @@ PROMPT="$(jq -n \
     "1. Read the repository instructions first: AGENTS.md, CLAUDE.md, and any relevant nested instruction files.",
     "2. Inspect the code and docs before answering. Base the answer on the actual current repository checkout.",
     "3. Reply only when the incoming message is a genuine project question, bug report, implementation discussion, design discussion, or request where a code-aware answer would help.",
-    "4. Ignore spam, pure thanks, greetings, unrelated chatter, or messages where no answer is useful. If the title or message explicitly asks you to confirm that you can read/respond, post a short confirmation instead of ignoring it. If ignoring, do not post anything and finish with exactly NO_REPLY.",
+    "4. Ignore spam, pure thanks, greetings, unrelated chatter, or messages where no answer is useful. If ignoring, do not post anything and finish with exactly NO_REPLY.",
     "5. Reply as the assistant bot, not as the repository owner or maintainer.",
     "6. Keep public replies concise and practical. Mention file paths or code areas when useful.",
     "7. Reply in the same language as the incoming message when the language is clear. If the message mixes languages, use the dominant language.",
