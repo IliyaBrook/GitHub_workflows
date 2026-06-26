@@ -146,7 +146,7 @@ The wrapper also accepts environment variables:
 | `OPENCLAW_OWNER_LABEL` | Public wording for who approves code changes, for example `project maintainer`. |
 | `OPENCLAW_APPROVED_ACTOR_LOGINS` | Comma-separated GitHub logins allowed to approve code-changing runs. |
 | `OPENCLAW_APPROVAL_PHRASE_REGEX` | Case-insensitive regex that marks a comment from an approved actor as approval. |
-| `OPENCLAW_STAGING_UPDATE_COMMAND` | Command the assistant should run after committing and pushing an approved change. |
+| `OPENCLAW_STAGING_UPDATE_COMMAND` | Command the assistant should run after committing and pushing an approved change to the default branch. |
 
 ## Behavior
 
@@ -156,7 +156,7 @@ The wrapper also accepts environment variables:
 - It ignores spam, greetings, pure thanks, unrelated messages, and messages where no answer is useful.
 - It does not implement code changes from Issues or Discussions by default. It may explain a plan and say changes need maintainer approval.
 - It enters approved-change mode only for issue comments from `approved-actor-logins` that contain an explicit approval phrase such as `approved`, `приступай`, `разрешаю`, or `утверждаю`.
-- In approved-change mode, it must read the full thread first, make only the approved change, commit/push when appropriate, update staging when a command is configured, and report the result back to GitHub.
+- In approved-change mode, it must read the full thread first, make only the approved change, commit and push to the default branch when allowed, create a branch and PR if the default branch push is rejected, update staging when the configured command can deploy the pushed change, and report the result back to GitHub.
 - For user-facing web, mobile, or Expo changes in approved-change mode, build success is not enough: after staging is updated, it must open staging in a browser with a mobile viewport such as `390x844`, navigate to the issue-provided URL or affected route, perform the actual user action, and report the visible verification result. If browser access, login, test data, or a required device is unavailable, it must say so instead of claiming full verification.
 - It skips events created by `bot-login` to avoid loops.
 

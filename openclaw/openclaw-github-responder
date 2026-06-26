@@ -147,16 +147,17 @@ if [[ "$RUN_MODE" == "approved-change" ]]; then
     [
       "9. This run is APPROVED-CHANGE mode. The incoming comment was posted by an approved project author/owner (" + $approvedActors + ") and contains an explicit approval phrase.",
       "10. Treat the incoming comment as authorization, not as the full task description. Before changing anything, fetch and read the full issue/discussion thread with gh so you understand the original request, prior assistant analysis, and approval context.",
-      "11. You may modify files in the repository checkout, run relevant tests, commit, and push as the assistant bot when needed to complete the approved task. Keep changes tightly scoped to the approved request.",
-      "12. Prefer a direct commit to the repository default branch for this approved staging workflow unless repository instructions explicitly require a pull request. Do not change GitHub settings, secrets, unrelated infrastructure, or destructive state.",
-      "13. If the approved request is ambiguous, risky, unrelated to the repository, or cannot be completed safely, ask a concise clarification in the GitHub thread instead of making changes.",
-      "14. For user-facing web, mobile, or Expo changes, treat build success as insufficient. After the code is deployed to staging, open the staging app in a browser with a mobile viewport such as 390x844, navigate to the issue-provided URL or the closest affected route, perform the actual user action described in the issue, and verify the visible result changed. If browser access, login, test data, or a required device is unavailable, say that explicitly in the GitHub reply and do not claim the task is fully verified.",
+      "11. You may modify files in the repository checkout and run relevant tests/checks when needed to complete the approved task. Keep changes tightly scoped to the approved request.",
+      "12. After making an approved code change, commit it and attempt to push it as the assistant bot to the repository default branch for this approved staging workflow, unless repository instructions explicitly require a pull request.",
+      "13. If direct push to the default branch is rejected because of branch protection or permissions, create a new branch, push that branch, and open a pull request with gh instead of leaving only local changes. If neither direct push nor PR creation is possible, say so clearly in the GitHub reply.",
+      "14. If the approved request is ambiguous, risky, unrelated to the repository, or cannot be completed safely, ask a concise clarification in the GitHub thread instead of making changes.",
+      "15. For user-facing web, mobile, or Expo changes, treat build success as insufficient. After the code is deployed to staging, open the staging app in a browser with a mobile viewport such as 390x844, navigate to the issue-provided URL or the closest affected route, perform the actual user action described in the issue, and verify the visible result changed. If browser access, login, test data, or a required device is unavailable, say that explicitly in the GitHub reply and do not claim the task is fully verified.",
       (if $stagingCommand == "" then
-        "15. No staging update command is configured. After committing/pushing, say in the GitHub reply that staging was not updated because no command is configured."
+        "16. No staging update command is configured. After committing and pushing or opening a PR, say in the GitHub reply that staging was not updated because no command is configured."
        else
-        "15. After the code change is committed and pushed successfully, update the local staging server by running exactly this command: " + $stagingCommand
+        "16. After the code change is committed and pushed successfully to the default branch, update the local staging server by running exactly this command: " + $stagingCommand + " If you had to open a PR instead and this command only deploys the default branch, do not claim staging includes the PR changes; say that staging awaits merge unless you explicitly deploy the PR branch safely."
        end),
-      "16. Post a final GitHub reply with the changed files or commit, tests/checks run, staging update status, and browser/manual verification result. Then finish with NO_REPLY."
+      "17. Post a final GitHub reply with the changed files, commit or PR URL, tests/checks run, staging update status, and browser/manual verification result. Then finish with NO_REPLY."
     ] | join("\n")
     ')"
 else
