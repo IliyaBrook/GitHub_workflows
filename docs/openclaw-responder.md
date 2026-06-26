@@ -99,7 +99,7 @@ jobs:
       runner-labels: '["self-hosted","openclaw"]'
       responder-script: /opt/openclaw/bin/openclaw-github-responder
       bot-login: brooks-assistant
-      assistant-name: OpenClaw Assistant
+      assistant-name: Developer Assistant
       hook-url: http://127.0.0.1:18789/hooks/agent
       hook-token-file: /opt/openclaw/secrets/github-hook-token
 
@@ -113,7 +113,7 @@ jobs:
       runner-labels: '["self-hosted","openclaw"]'
       responder-script: /opt/openclaw/bin/openclaw-github-responder
       bot-login: brooks-assistant
-      assistant-name: OpenClaw Assistant
+      assistant-name: Developer Assistant
       hook-url: http://127.0.0.1:18789/hooks/agent
       hook-token-file: /opt/openclaw/secrets/github-hook-token
 ```
@@ -125,7 +125,7 @@ jobs:
 | `runner-labels` | `["self-hosted","openclaw"]` | JSON array for `runs-on`. Add host-specific labels if needed. |
 | `responder-script` | `/opt/openclaw/bin/openclaw-github-responder` | Absolute path to the wrapper on the runner host. |
 | `bot-login` | `brooks-assistant` | GitHub login of the assistant bot. Events from this actor are skipped. |
-| `assistant-name` | `OpenClaw Assistant` | Public assistant name included in the prompt. |
+| `assistant-name` | `Developer Assistant` | Public assistant name included in the prompt. |
 | `hook-url` | `http://127.0.0.1:18789/hooks/agent` | OpenClaw hook endpoint reachable from the runner host. |
 | `hook-token-file` | `/opt/openclaw/secrets/github-hook-token` | File containing the hook token. |
 | `approved-actor-logins` | `IliyaBrook` | Comma-separated GitHub logins allowed to approve code-changing runs. |

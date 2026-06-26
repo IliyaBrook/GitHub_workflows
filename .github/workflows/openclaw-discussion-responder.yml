@@ -22,7 +22,7 @@ on:
         description: Public assistant name used in the prompt.
         required: false
         type: string
-        default: OpenClaw Assistant
+        default: Developer Assistant
       hook-url:
         description: Local OpenClaw hook endpoint reachable from the runner host.
         required: false
