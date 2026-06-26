@@ -230,9 +230,11 @@ PAYLOAD="$(jq -n \
   --arg message "$PROMPT" \
   --arg name "$ASSISTANT_NAME GitHub Responder" \
   --arg runMode "$RUN_MODE" \
+  --arg agentId "developer-assistant" \
   '{
     message: $message,
     name: $name,
+    agentId: $agentId,
     deliver: false,
     timeoutSeconds: (if $runMode == "approved-change" then 3600 else 900 end)
   }')"
