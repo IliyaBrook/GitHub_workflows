@@ -132,7 +132,7 @@ case "$EVENT_NAME" in
 esac
 
 RUN_MODE="read-only"
-if [[ "$EVENT_NAME" == "issues" || "$EVENT_NAME" == "issue_comment" ]]; then
+if [[ "$EVENT_NAME" == "issues" || "$EVENT_NAME" == "issue_comment" || "$EVENT_NAME" == "discussion" || "$EVENT_NAME" == "discussion_comment" ]]; then
   if actor_is_approved "$ACTOR"; then
     RUN_MODE="maintainer-issue-action"
     if [[ "$EVENT_NAME" == "issue_comment" ]] && grep -Eiq "$APPROVAL_PHRASE_REGEX" <<<"$TARGET_BODY"; then
@@ -170,9 +170,9 @@ elif [[ "$RUN_MODE" == "maintainer-issue-action" ]]; then
     --arg approvedActors "$APPROVED_ACTOR_LOGINS" \
     '
     [
-      "9. This run is MAINTAINER-ISSUE-ACTION mode. The incoming issue or issue comment was posted by an approved project author/owner (" + $approvedActors + ").",
+      "9. This run is MAINTAINER-ISSUE-ACTION mode. The incoming issue, issue comment, discussion, or discussion comment was posted by an approved project author/owner (" + $approvedActors + ").",
       "10. You may manage GitHub Issues when the approved actor asks for it: create issues, close issues, reopen issues, add or remove labels, and post issue comments with gh. Keep issue-management actions tightly scoped to the request.",
-      "11. Before closing an issue or splitting work into new issues, fetch and read the relevant issue thread with gh so you understand the original request and prior discussion.",
+      "11. Before closing an issue or splitting discussion/issue work into new issues, fetch and read the relevant GitHub issue or discussion thread with gh/api so you understand the original request and prior discussion.",
       "12. Do not modify files, commit, push, create branches, create pull requests, change GitHub settings, change secrets, restart services, or run destructive commands in this mode.",
       "13. If the approved actor asks for code or infrastructure changes without an explicit approval phrase, reply with a concise analysis or implementation plan and say that actual changes need explicit approval from the " + $ownerLabel + ".",
       "14. Post a final GitHub reply with issue-management actions taken, or the plan/approval needed if no issue action was appropriate. Then finish with NO_REPLY."

@@ -9,7 +9,7 @@ The flow is event-driven:
 3. The runner calls a local OpenClaw hook, usually `http://127.0.0.1:18789/hooks/agent`.
 4. OpenClaw reads the checked-out repository and posts a public reply when a code-aware answer is useful.
 
-The responder is designed for public support. It is read-only for public/non-approved actors. For Issues and Issue comments from configured project authors, it can enter maintainer-issue-action mode to manage Issues. Code changes still require an explicit approval phrase from a configured project author. Discussions stay read-only.
+The responder is designed for public support. It is read-only for public/non-approved actors. For Issues, Issue comments, Discussions, and Discussion comments from configured project authors, it can enter maintainer-issue-action mode to manage Issues. Code changes still require an explicit approval phrase in an Issue comment from a configured project author.
 
 ## Files
 
@@ -108,11 +108,13 @@ jobs:
     permissions:
       contents: read
       discussions: read
+      issues: write
     uses: IliyaBrook/GitHub_workflows/.github/workflows/openclaw-discussion-responder.yml@master
     with:
       runner-labels: '["self-hosted","openclaw"]'
       responder-script: /opt/openclaw/bin/openclaw-github-responder
       bot-login: brooks-assistant
+      approved-actor-logins: IliyaBrook
       assistant-name: Developer Assistant
       hook-url: http://127.0.0.1:18789/hooks/agent
       hook-token-file: /opt/openclaw/secrets/github-hook-token
@@ -155,8 +157,8 @@ The wrapper also accepts environment variables:
 - It checks the internet when current external facts are needed, preferring official sources for technical claims.
 - It ignores spam, greetings, pure thanks, unrelated messages, and messages where no answer is useful.
 - It does not implement code changes or manage Issues for unapproved actors by default. It may explain a plan and say changes need maintainer approval.
-- For Issues and Issue comments from `approved-actor-logins`, it enters maintainer-issue-action mode.
-- In maintainer-issue-action mode, it may create, close, reopen, label, and comment on GitHub Issues when requested. It must read the relevant thread first before issue closure or splitting work into new Issues. It must not modify files, commit, push, create branches, or create pull requests in this mode.
+- For Issues, Issue comments, Discussions, and Discussion comments from `approved-actor-logins`, it enters maintainer-issue-action mode.
+- In maintainer-issue-action mode, it may create, close, reopen, label, and comment on GitHub Issues when requested. It must read the relevant issue or discussion thread first before issue closure or splitting work into new Issues. It must not modify files, commit, push, create branches, or create pull requests in this mode.
 - It enters approved-change mode only for issue comments from `approved-actor-logins` that contain an explicit approval phrase such as `approved`, `приступай`, `разрешаю`, or `утверждаю`.
 - In approved-change mode, it may make scoped code changes, commit and push to the default branch when allowed, create a branch and PR if the default branch push is rejected, update staging when the configured command can deploy the pushed change, and report the result back to GitHub.
 - For user-facing web, mobile, or Expo changes in approved-change mode, build success is not enough: after staging is updated, it must open staging in a browser with a mobile viewport such as `390x844`, navigate to the issue-provided URL or affected route, perform the actual user action, and report the visible verification result. If browser access, login, test data, or a required device is unavailable, it must say so instead of claiming full verification.
