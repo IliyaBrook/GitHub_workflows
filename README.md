@@ -58,7 +58,7 @@ Uses a self-hosted runner on your OpenClaw server to wake a local OpenClaw assis
 
 - No inbound public port is required; the self-hosted runner connects outbound to GitHub.
 - The assistant reads the checked-out repository and replies in Issues or Discussions when useful.
-- The provided wrapper is read-only by default. It may enter approved-change mode only for an approved issue comment from a configured project author, then make a scoped change, update staging when configured, and verify user-facing web/mobile changes in a browser mobile viewport.
+- The provided wrapper is read-only for public/non-approved actors. For Issues and Issue comments from configured project authors, it may manage Issues, make scoped code changes, update staging when configured, and verify user-facing web/mobile changes in a browser mobile viewport.
 - Includes a server-side wrapper script at [`openclaw/openclaw-github-responder`](openclaw/openclaw-github-responder).
 
 **Setup:** see [OpenClaw GitHub Responder](docs/openclaw-responder.md).

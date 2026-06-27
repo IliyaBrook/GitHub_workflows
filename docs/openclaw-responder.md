@@ -9,7 +9,7 @@ The flow is event-driven:
 3. The runner calls a local OpenClaw hook, usually `http://127.0.0.1:18789/hooks/agent`.
 4. OpenClaw reads the checked-out repository and posts a public reply when a code-aware answer is useful.
 
-The responder is designed for public support. It is read-only by prompt: it should answer questions, explain code, and propose implementation plans, but it should not edit files, push commits, create PRs, change settings, or restart services.
+The responder is designed for public support. It is read-only for public/non-approved actors. For Issues and Issue comments from configured project authors, it can enter maintainer-action mode to manage Issues and perform scoped repository work. Discussions stay read-only.
 
 ## Files
 
@@ -93,7 +93,7 @@ jobs:
     if: github.event_name == 'issues' || github.event_name == 'issue_comment'
     permissions:
       contents: read
-      issues: read
+      issues: write
     uses: IliyaBrook/GitHub_workflows/.github/workflows/openclaw-issue-responder.yml@master
     with:
       runner-labels: '["self-hosted","openclaw"]'
@@ -128,7 +128,7 @@ jobs:
 | `assistant-name` | `Developer Assistant` | Public assistant name included in the prompt. |
 | `hook-url` | `http://127.0.0.1:18789/hooks/agent` | OpenClaw hook endpoint reachable from the runner host. |
 | `hook-token-file` | `/opt/openclaw/secrets/github-hook-token` | File containing the hook token. |
-| `approved-actor-logins` | `IliyaBrook` | Comma-separated GitHub logins allowed to approve code-changing runs. |
+| `approved-actor-logins` | `IliyaBrook` | Comma-separated GitHub logins allowed to request write-enabled Issue work. |
 | `staging-update-command` | empty | Optional command to run after a successful approved code change. |
 | `timeout-minutes` | `60` | Maximum workflow job runtime. |
 
@@ -144,7 +144,7 @@ The wrapper also accepts environment variables:
 | `OPENCLAW_BOT_LOGIN` | GitHub login to suppress, usually your assistant account. |
 | `OPENCLAW_ASSISTANT_NAME` | Public assistant name. |
 | `OPENCLAW_OWNER_LABEL` | Public wording for who approves code changes, for example `project maintainer`. |
-| `OPENCLAW_APPROVED_ACTOR_LOGINS` | Comma-separated GitHub logins allowed to approve code-changing runs. |
+| `OPENCLAW_APPROVED_ACTOR_LOGINS` | Comma-separated GitHub logins allowed to request write-enabled Issue work. |
 | `OPENCLAW_APPROVAL_PHRASE_REGEX` | Case-insensitive regex that marks a comment from an approved actor as approval. |
 | `OPENCLAW_STAGING_UPDATE_COMMAND` | Command the assistant should run after committing and pushing an approved change to the default branch. |
 
@@ -154,10 +154,11 @@ The wrapper also accepts environment variables:
 - Public replies should be understandable to non-programmers by default. Unless someone explicitly asks for code-level detail, the assistant should avoid internal variable names, boolean conditions, function names, and implementation jargon, and describe the visible behavior, user impact, and result in plain language.
 - It checks the internet when current external facts are needed, preferring official sources for technical claims.
 - It ignores spam, greetings, pure thanks, unrelated messages, and messages where no answer is useful.
-- It does not implement code changes from Issues or Discussions by default. It may explain a plan and say changes need maintainer approval.
-- It enters approved-change mode only for issue comments from `approved-actor-logins` that contain an explicit approval phrase such as `approved`, `приступай`, `разрешаю`, or `утверждаю`.
-- In approved-change mode, it must read the full thread first, make only the approved change, commit and push to the default branch when allowed, create a branch and PR if the default branch push is rejected, update staging when the configured command can deploy the pushed change, and report the result back to GitHub.
-- For user-facing web, mobile, or Expo changes in approved-change mode, build success is not enough: after staging is updated, it must open staging in a browser with a mobile viewport such as `390x844`, navigate to the issue-provided URL or affected route, perform the actual user action, and report the visible verification result. If browser access, login, test data, or a required device is unavailable, it must say so instead of claiming full verification.
+- It does not implement code changes or manage Issues for unapproved actors by default. It may explain a plan and say changes need maintainer approval.
+- For Issues and Issue comments from `approved-actor-logins`, it enters maintainer-action mode.
+- In maintainer-action mode, it may create, close, reopen, label, and comment on GitHub Issues when requested. It must read the full thread first before code changes, issue closure, or splitting work into new Issues.
+- In maintainer-action mode, it may make scoped code changes, commit and push to the default branch when allowed, create a branch and PR if the default branch push is rejected, update staging when the configured command can deploy the pushed change, and report the result back to GitHub.
+- For user-facing web, mobile, or Expo changes in maintainer-action mode, build success is not enough: after staging is updated, it must open staging in a browser with a mobile viewport such as `390x844`, navigate to the issue-provided URL or affected route, perform the actual user action, and report the visible verification result. If browser access, login, test data, or a required device is unavailable, it must say so instead of claiming full verification.
 - It skips events created by `bot-login` to avoid loops.
 
 ## Telegram Notifications

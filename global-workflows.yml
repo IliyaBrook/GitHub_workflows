@@ -94,7 +94,7 @@ jobs:
     if: github.event_name == 'issues' || github.event_name == 'issue_comment'
     permissions:
       contents: read
-      issues: read
+      issues: write
     uses: IliyaBrook/GitHub_workflows/.github/workflows/openclaw-issue-responder.yml@master
     with:
       runner-labels: '["self-hosted","openclaw"]'

@@ -34,7 +34,7 @@ on:
         type: string
         default: /opt/openclaw/secrets/github-hook-token
       approved-actor-logins:
-        description: Comma-separated GitHub logins allowed to approve code-changing runs.
+        description: Comma-separated GitHub logins allowed to request write-enabled Issue work.
         required: false
         type: string
         default: IliyaBrook
@@ -51,7 +51,7 @@ on:
 
 permissions:
   contents: read
-  issues: read
+  issues: write
 
 concurrency:
   group: openclaw-issue-${{ github.event.issue.node_id || github.run_id }}
