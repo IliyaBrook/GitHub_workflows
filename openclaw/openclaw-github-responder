@@ -134,21 +134,24 @@ esac
 RUN_MODE="read-only"
 if [[ "$EVENT_NAME" == "issues" || "$EVENT_NAME" == "issue_comment" ]]; then
   if actor_is_approved "$ACTOR"; then
-    RUN_MODE="maintainer-action"
+    RUN_MODE="maintainer-issue-action"
+    if [[ "$EVENT_NAME" == "issue_comment" ]] && grep -Eiq "$APPROVAL_PHRASE_REGEX" <<<"$TARGET_BODY"; then
+      RUN_MODE="approved-change"
+    fi
   fi
 fi
 
-if [[ "$RUN_MODE" == "maintainer-action" ]]; then
+if [[ "$RUN_MODE" == "approved-change" ]]; then
   MODE_INSTRUCTIONS="$(jq -rn \
     --arg ownerLabel "$OWNER_LABEL" \
     --arg approvedActors "$APPROVED_ACTOR_LOGINS" \
     --arg stagingCommand "$STAGING_UPDATE_COMMAND" \
     '
     [
-      "9. This run is MAINTAINER-ACTION mode. The incoming issue or issue comment was posted by an approved project author/owner (" + $approvedActors + "). Treat explicit requests from this actor as authorized repository work.",
-      "10. Treat the incoming message as authorization, not always as the full task description. Before changing code, closing issues, or splitting work into new issues, fetch and read the full issue thread with gh so you understand the original request, prior assistant analysis, and approval context.",
+      "9. This run is APPROVED-CHANGE mode. The incoming comment was posted by an approved project author/owner (" + $approvedActors + ") and contains an explicit approval phrase.",
+      "10. Treat the incoming comment as authorization, not as the full task description. Before changing anything, fetch and read the full issue thread with gh so you understand the original request, prior assistant analysis, and approval context.",
       "11. You may manage GitHub Issues when the approved actor asks for it: create issues, close issues, reopen issues, add or remove labels, and post issue comments with gh. Keep issue-management actions tightly scoped to the approved request.",
-      "12. You may modify files in the repository checkout and run relevant tests/checks when needed to complete the approved task. Keep code changes tightly scoped to the approved request.",
+      "12. You may modify files in the repository checkout and run relevant tests/checks when needed to complete the approved task. Keep changes tightly scoped to the approved request.",
       "13. After making an approved code change, commit it and attempt to push it as the assistant bot to the repository default branch for this approved staging workflow, unless repository instructions explicitly require a pull request.",
       "14. If direct push to the default branch is rejected because of branch protection or permissions, create a new branch, push that branch, and open a pull request with gh instead of leaving only local changes. If neither direct push nor PR creation is possible, say so clearly in the GitHub reply.",
       "15. If the approved request is ambiguous, risky, unrelated to the repository, or cannot be completed safely, ask a concise clarification in the GitHub thread instead of making changes.",
@@ -159,6 +162,20 @@ if [[ "$RUN_MODE" == "maintainer-action" ]]; then
         "17. After the code change is committed and pushed successfully to the default branch, update the local staging server by running exactly this command: " + $stagingCommand + " If you had to open a PR instead and this command only deploys the default branch, do not claim staging includes the PR changes; say that staging awaits merge unless you explicitly deploy the PR branch safely."
        end),
       "18. Post a final GitHub reply with issue-management actions, changed files, commit or PR URL, tests/checks run, staging update status, and browser/manual verification result. Then finish with NO_REPLY."
+    ] | join("\n")
+    ')"
+elif [[ "$RUN_MODE" == "maintainer-issue-action" ]]; then
+  MODE_INSTRUCTIONS="$(jq -rn \
+    --arg ownerLabel "$OWNER_LABEL" \
+    --arg approvedActors "$APPROVED_ACTOR_LOGINS" \
+    '
+    [
+      "9. This run is MAINTAINER-ISSUE-ACTION mode. The incoming issue or issue comment was posted by an approved project author/owner (" + $approvedActors + ").",
+      "10. You may manage GitHub Issues when the approved actor asks for it: create issues, close issues, reopen issues, add or remove labels, and post issue comments with gh. Keep issue-management actions tightly scoped to the request.",
+      "11. Before closing an issue or splitting work into new issues, fetch and read the relevant issue thread with gh so you understand the original request and prior discussion.",
+      "12. Do not modify files, commit, push, create branches, create pull requests, change GitHub settings, change secrets, restart services, or run destructive commands in this mode.",
+      "13. If the approved actor asks for code or infrastructure changes without an explicit approval phrase, reply with a concise analysis or implementation plan and say that actual changes need explicit approval from the " + $ownerLabel + ".",
+      "14. Post a final GitHub reply with issue-management actions taken, or the plan/approval needed if no issue action was appropriate. Then finish with NO_REPLY."
     ] | join("\n")
     ')"
 else
@@ -238,7 +255,7 @@ PAYLOAD="$(jq -n \
     name: $name,
     agentId: $agentId,
     deliver: false,
-    timeoutSeconds: (if $runMode == "maintainer-action" then 3600 else 900 end)
+    timeoutSeconds: (if $runMode == "approved-change" then 3600 else 900 end)
   }')"
 
 curl -fsS \
