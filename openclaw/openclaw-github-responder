@@ -1,43 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EVENT_PATH="${1:-${GITHUB_EVENT_PATH:-}}"
-WORKSPACE_DIR="${2:-${GITHUB_WORKSPACE:-}}"
-HOOK_URL="${OPENCLAW_HOOK_URL:-http://127.0.0.1:18789/hooks/agent}"
-TOKEN_FILE="${OPENCLAW_HOOK_TOKEN_FILE:-$HOME/.openclaw/secrets/github-hook-token}"
-BOT_LOGIN="${OPENCLAW_BOT_LOGIN:-brooks-assistant}"
-ASSISTANT_NAME="${OPENCLAW_ASSISTANT_NAME:-Developer Assistant}"
-OWNER_LABEL="${OPENCLAW_OWNER_LABEL:-project maintainer/owner}"
-APPROVED_ACTOR_LOGINS="${OPENCLAW_APPROVED_ACTOR_LOGINS:-IliyaBrook}"
-APPROVAL_PHRASE_REGEX="${OPENCLAW_APPROVAL_PHRASE_REGEX:-(^|[[:space:][:punct:]])(approved|approve|приступай|разрешаю|утверждаю|можно[[:space:]]+(делать|менять)|можешь[[:space:]]+(делать|менять|приступать))($|[[:space:][:punct:]])}"
-STAGING_UPDATE_COMMAND="${OPENCLAW_STAGING_UPDATE_COMMAND:-}"
 
 if [[ -z "$EVENT_PATH" || ! -f "$EVENT_PATH" ]]; then
   echo "Missing GitHub event payload path" >&2
   exit 2
 fi
 
-if [[ -z "$WORKSPACE_DIR" || ! -d "$WORKSPACE_DIR" ]]; then
-  echo "Missing checked-out repository workspace" >&2
-  exit 2
-fi
-
 if ! command -v jq >/dev/null 2>&1; then
   echo "jq is required" >&2
-  exit 2
-fi
-
-if ! command -v curl >/dev/null 2>&1; then
-  echo "curl is required" >&2
-  exit 2
-fi
-
-if [[ -n "${OPENCLAW_HOOK_TOKEN:-}" ]]; then
-  TOKEN="$OPENCLAW_HOOK_TOKEN"
-elif [[ -f "$TOKEN_FILE" ]]; then
-  TOKEN="$(<"$TOKEN_FILE")"
-else
-  echo "Missing OpenClaw hook token. Set OPENCLAW_HOOK_TOKEN or OPENCLAW_HOOK_TOKEN_FILE." >&2
   exit 2
 fi
 
@@ -53,215 +26,15 @@ if [[ -z "$EVENT_NAME" ]]; then
   ' "$EVENT_PATH")"
 fi
 
-ACTION="$(jq -r '.action // ""' "$EVENT_PATH")"
-ACTOR="${GITHUB_ACTOR:-$(jq -r '.sender.login // ""' "$EVENT_PATH")}"
-REPO="${GITHUB_REPOSITORY:-$(jq -r '.repository.full_name // ""' "$EVENT_PATH")}"
-
-if [[ -z "$REPO" || "$REPO" == "null" ]]; then
-  echo "Missing repository full name" >&2
-  exit 2
-fi
-
-if [[ "$ACTOR" == "$BOT_LOGIN" || "$ACTOR" == "github-actions[bot]" ]]; then
-  echo "NO_REPLY actor=$ACTOR"
-  exit 0
-fi
-
-case "$EVENT_NAME:$ACTION" in
-  issues:opened|issue_comment:created|discussion:created|discussion_comment:created) ;;
+case "$EVENT_NAME" in
+  issues|issue_comment)
+    exec "$SCRIPT_DIR/openclaw-github-issue-responder" "$@"
+    ;;
+  discussion|discussion_comment)
+    exec "$SCRIPT_DIR/openclaw-github-discussion-responder" "$@"
+    ;;
   *)
-    echo "NO_REPLY event=$EVENT_NAME action=$ACTION"
+    echo "NO_REPLY event=$EVENT_NAME"
     exit 0
     ;;
 esac
-
-actor_is_approved() {
-  local login candidate
-  login="$1"
-  IFS=',' read -ra candidates <<<"$APPROVED_ACTOR_LOGINS"
-  for candidate in "${candidates[@]}"; do
-    candidate="${candidate#"${candidate%%[![:space:]]*}"}"
-    candidate="${candidate%"${candidate##*[![:space:]]}"}"
-    if [[ "$login" == "$candidate" ]]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
-TARGET_KIND=""
-TARGET_NUMBER=""
-TARGET_TITLE=""
-TARGET_URL=""
-TARGET_BODY=""
-DISCUSSION_ID=""
-REPLY_TO_ID=""
-
-case "$EVENT_NAME" in
-  issues)
-    TARGET_KIND="issue"
-    TARGET_NUMBER="$(jq -r '.issue.number // ""' "$EVENT_PATH")"
-    TARGET_TITLE="$(jq -r '.issue.title // ""' "$EVENT_PATH")"
-    TARGET_URL="$(jq -r '.issue.html_url // ""' "$EVENT_PATH")"
-    TARGET_BODY="$(jq -r '.issue.body // ""' "$EVENT_PATH")"
-    ;;
-  issue_comment)
-    TARGET_KIND="issue_comment"
-    TARGET_NUMBER="$(jq -r '.issue.number // ""' "$EVENT_PATH")"
-    TARGET_TITLE="$(jq -r '.issue.title // ""' "$EVENT_PATH")"
-    TARGET_URL="$(jq -r '.comment.html_url // ""' "$EVENT_PATH")"
-    TARGET_BODY="$(jq -r '.comment.body // ""' "$EVENT_PATH")"
-    ;;
-  discussion)
-    TARGET_KIND="discussion"
-    TARGET_NUMBER="$(jq -r '.discussion.number // ""' "$EVENT_PATH")"
-    TARGET_TITLE="$(jq -r '.discussion.title // ""' "$EVENT_PATH")"
-    TARGET_URL="$(jq -r '.discussion.html_url // ""' "$EVENT_PATH")"
-    TARGET_BODY="$(jq -r '.discussion.body // ""' "$EVENT_PATH")"
-    DISCUSSION_ID="$(jq -r '.discussion.node_id // .discussion.id // ""' "$EVENT_PATH")"
-    ;;
-  discussion_comment)
-    TARGET_KIND="discussion_comment"
-    TARGET_NUMBER="$(jq -r '.discussion.number // ""' "$EVENT_PATH")"
-    TARGET_TITLE="$(jq -r '.discussion.title // ""' "$EVENT_PATH")"
-    TARGET_URL="$(jq -r '.comment.html_url // ""' "$EVENT_PATH")"
-    TARGET_BODY="$(jq -r '.comment.body // ""' "$EVENT_PATH")"
-    DISCUSSION_ID="$(jq -r '.discussion.node_id // .discussion.id // ""' "$EVENT_PATH")"
-    REPLY_TO_ID="$(jq -r '.comment.node_id // .comment.id // ""' "$EVENT_PATH")"
-    ;;
-esac
-
-RUN_MODE="read-only"
-if [[ "$EVENT_NAME" == "issues" || "$EVENT_NAME" == "issue_comment" || "$EVENT_NAME" == "discussion" || "$EVENT_NAME" == "discussion_comment" ]]; then
-  if actor_is_approved "$ACTOR"; then
-    RUN_MODE="maintainer-issue-action"
-    if [[ "$EVENT_NAME" == "issue_comment" ]] && grep -Eiq "$APPROVAL_PHRASE_REGEX" <<<"$TARGET_BODY"; then
-      RUN_MODE="approved-change"
-    fi
-  fi
-fi
-
-if [[ "$RUN_MODE" == "approved-change" ]]; then
-  MODE_INSTRUCTIONS="$(jq -rn \
-    --arg ownerLabel "$OWNER_LABEL" \
-    --arg approvedActors "$APPROVED_ACTOR_LOGINS" \
-    --arg stagingCommand "$STAGING_UPDATE_COMMAND" \
-    '
-    [
-      "9. This run is APPROVED-CHANGE mode. The incoming comment was posted by an approved project author/owner (" + $approvedActors + ") and contains an explicit approval phrase.",
-      "10. Treat the incoming comment as authorization, not as the full task description. Before changing anything, fetch and read the full issue thread with gh so you understand the original request, prior assistant analysis, and approval context.",
-      "11. You may manage GitHub Issues when the approved actor asks for it: create issues, close issues, reopen issues, add or remove labels, and post issue comments with gh. Keep issue-management actions tightly scoped to the approved request.",
-      "12. You may modify files in the repository checkout and run relevant tests/checks when needed to complete the approved task. Keep changes tightly scoped to the approved request.",
-      "13. After making an approved code change, commit it and attempt to push it as the assistant bot to the repository default branch for this approved staging workflow, unless repository instructions explicitly require a pull request.",
-      "14. If direct push to the default branch is rejected because of branch protection or permissions, create a new branch, push that branch, and open a pull request with gh instead of leaving only local changes. If neither direct push nor PR creation is possible, say so clearly in the GitHub reply.",
-      "15. If the approved request is ambiguous, risky, unrelated to the repository, or cannot be completed safely, ask a concise clarification in the GitHub thread instead of making changes.",
-      "16. For user-facing web, mobile, or Expo changes, treat build success as insufficient. After the code is deployed to staging, open the staging app in a browser with a mobile viewport such as 390x844, navigate to the issue-provided URL or the closest affected route, perform the actual user action described in the issue, and verify the visible result changed. If browser access, login, test data, or a required device is unavailable, say that explicitly in the GitHub reply and do not claim the task is fully verified.",
-      (if $stagingCommand == "" then
-        "17. No staging update command is configured. After committing and pushing or opening a PR, say in the GitHub reply that staging was not updated because no command is configured."
-       else
-        "17. After the code change is committed and pushed successfully to the default branch, update the local staging server by running exactly this command: " + $stagingCommand + " If you had to open a PR instead and this command only deploys the default branch, do not claim staging includes the PR changes; say that staging awaits merge unless you explicitly deploy the PR branch safely."
-       end),
-      "18. Post a final GitHub reply with issue-management actions, changed files, commit or PR URL, tests/checks run, staging update status, and browser/manual verification result. Then finish with NO_REPLY."
-    ] | join("\n")
-    ')"
-elif [[ "$RUN_MODE" == "maintainer-issue-action" ]]; then
-  MODE_INSTRUCTIONS="$(jq -rn \
-    --arg ownerLabel "$OWNER_LABEL" \
-    --arg approvedActors "$APPROVED_ACTOR_LOGINS" \
-    '
-    [
-      "9. This run is MAINTAINER-ISSUE-ACTION mode. The incoming issue, issue comment, discussion, or discussion comment was posted by an approved project author/owner (" + $approvedActors + ").",
-      "10. You may manage GitHub Issues when the approved actor asks for it: create issues, close issues, reopen issues, add or remove labels, and post issue comments with gh. Keep issue-management actions tightly scoped to the request.",
-      "11. Before closing an issue or splitting discussion/issue work into new issues, fetch and read the relevant GitHub issue or discussion thread with gh/api so you understand the original request and prior discussion.",
-      "12. Do not modify files, commit, push, create branches, create pull requests, change GitHub settings, change secrets, restart services, or run destructive commands in this mode.",
-      "13. If the approved actor asks for code or infrastructure changes without an explicit approval phrase, reply with a concise analysis or implementation plan and say that actual changes need explicit approval from the " + $ownerLabel + ".",
-      "14. Post a final GitHub reply with issue-management actions taken, or the plan/approval needed if no issue action was appropriate. Then finish with NO_REPLY."
-    ] | join("\n")
-    ')"
-else
-  MODE_INSTRUCTIONS="$(jq -rn \
-    --arg ownerLabel "$OWNER_LABEL" \
-    '
-    [
-      "9. Treat this GitHub-triggered run as read-only. Do not modify files, commit, push, create branches, create pull requests, change GitHub settings, change secrets, restart services, or run destructive commands.",
-      "10. If someone asks you to change code or infrastructure, do not implement it. Reply with a concise analysis or implementation plan and say that actual changes need approval from the " + $ownerLabel + ". Do not mention private bots, OpenClaw internals, or internal workflows."
-    ] | join("\n")
-    ')"
-fi
-
-PROMPT="$(jq -rn \
-  --arg assistantName "$ASSISTANT_NAME" \
-  --arg ownerLabel "$OWNER_LABEL" \
-  --arg runMode "$RUN_MODE" \
-  --arg repo "$REPO" \
-  --arg workspace "$WORKSPACE_DIR" \
-  --arg event "$EVENT_NAME" \
-  --arg action "$ACTION" \
-  --arg actor "$ACTOR" \
-  --arg kind "$TARGET_KIND" \
-  --arg number "$TARGET_NUMBER" \
-  --arg title "$TARGET_TITLE" \
-  --arg targetUrl "$TARGET_URL" \
-  --arg targetBody "$TARGET_BODY" \
-  --arg discussionId "$DISCUSSION_ID" \
-  --arg replyToId "$REPLY_TO_ID" \
-  --arg modeInstructions "$MODE_INSTRUCTIONS" \
-  '
-  [
-    "You are " + $assistantName + " responding to GitHub repository activity.",
-    "",
-    "Repository: " + $repo,
-    "Repository checkout: " + $workspace,
-    "Run mode: " + $runMode,
-    "Event: " + $event + " / " + $action,
-    "Author: " + $actor,
-    "Target kind: " + $kind,
-    "Target number: " + $number,
-    "Title: " + $title,
-    "Target URL: " + $targetUrl,
-    "Discussion GraphQL ID: " + (if $discussionId == "" then "(none)" else $discussionId end),
-    "Reply-to comment GraphQL ID: " + (if $replyToId == "" then "(none)" else $replyToId end),
-    "",
-    "Incoming message:",
-    $targetBody,
-    "",
-    "Instructions:",
-    "1. Read the repository instructions first: AGENTS.md, CLAUDE.md, and any relevant nested instruction files.",
-    "2. Inspect the code and docs before answering. Base the answer on the actual current repository checkout.",
-    "3. Reply only when the incoming message is a genuine project question, bug report, implementation discussion, design discussion, or request where a code-aware answer would help.",
-    "4. Ignore spam, pure thanks, greetings, unrelated chatter, or messages where no answer is useful. If ignoring, do not post anything and finish with exactly NO_REPLY.",
-    "5. Reply as the assistant bot, not as the repository owner or maintainer.",
-    "6. Keep public replies concise, practical, and understandable to non-programmers. Unless the incoming message explicitly asks for code-level detail, avoid internal variable names, boolean conditions, function names, and other implementation jargon. Describe the visible behavior, user impact, and result in plain language; mention file paths or code areas only when they help.",
-    "7. Reply in the same language as the incoming message when the language is clear. If the message mixes languages, use the dominant language.",
-    "8. When a better answer depends on current external information, use the internet to verify it before replying. This includes library/framework documentation, API behavior, platform limits, service changes, package versions, and other time-sensitive facts. Prefer official sources for technical claims.",
-    $modeInstructions,
-    "16. Post the reply yourself and then finish with NO_REPLY.",
-    "",
-    "Posting commands:",
-    "For issues and issue comments, use: gh issue comment " + $number + " --repo " + $repo + " --body <reply>",
-    "For a new discussion, use gh api graphql addDiscussionComment with discussionId and body.",
-    "For a discussion comment, use gh api graphql addDiscussionComment with discussionId, replyToId, and body.",
-    "Never post if the best action is to ignore."
-  ] | join("\n")
-  ')"
-
-PAYLOAD="$(jq -n \
-  --arg message "$PROMPT" \
-  --arg name "$ASSISTANT_NAME GitHub Responder" \
-  --arg runMode "$RUN_MODE" \
-  --arg agentId "developer-assistant" \
-  '{
-    message: $message,
-    name: $name,
-    agentId: $agentId,
-    deliver: false,
-    timeoutSeconds: (if $runMode == "approved-change" then 3600 else 900 end)
-  }')"
-
-curl -fsS \
-  -X POST "$HOOK_URL" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  --data "$PAYLOAD"
-
-echo

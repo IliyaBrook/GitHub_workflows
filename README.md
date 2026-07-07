@@ -34,51 +34,17 @@ Sends real-time Telegram messages when activity happens in your repository:
 
 ---
 
-### Claude Issue Triage — `claude-issue-triage.yml`
-
-Uses the official Anthropic workflow action [`anthropics/claude-code-action@v1`](https://github.com/anthropics/claude-code-action) to automatically analyze every new issue with Claude AI. When an issue is opened, Claude will:
-
-- Read the project README and explore the codebase for context
-- Classify the issue (bug / feature request / question / other)
-- Assess priority (critical / high / medium / low) and feasibility
-- Suggest a high-level implementation plan with affected files
-- Check for similar existing issues
-- Post the full triage analysis as a comment on the issue
-- Send the analysis summary to your Telegram bot
-
-> **No API key required!** This action officially supports authentication with a Claude Max subscription — no need to pay for API credits separately.
-
-**Setup requires three repository secrets:** `TELEGRAM_CHAT_ID`, `TELEGRAM_TOKEN` (same as Telegram Notifications above), and `CLAUDE_CODE_OAUTH_TOKEN` (see setup below).
-
----
-
 ### OpenClaw GitHub Responder — `openclaw-issue-responder.yml` / `openclaw-discussion-responder.yml`
 
 Uses a self-hosted runner on your OpenClaw server to wake a local OpenClaw assistant when Issues or Discussions need a code-aware public reply.
 
 - No inbound public port is required; the self-hosted runner connects outbound to GitHub.
-- The assistant reads the checked-out repository and replies in Issues or Discussions when useful.
-- The provided wrapper is read-only for public/non-approved actors. For Issues, Issue comments, Discussions, and Discussion comments from configured project authors, it may manage Issues. Code changes still require an explicit approval phrase in an Issue comment from a configured project author.
-- Includes a server-side wrapper script at [`openclaw/openclaw-github-responder`](openclaw/openclaw-github-responder).
+- The assistant reads the checked-out repository and replies in Issues when useful.
+- Discussion events are ignored unless the incoming discussion body or discussion comment body mentions `@brooks-assistant`.
+- The provided wrappers are read-only for public/non-approved actors. For Issues, Issue comments, Discussions, and Discussion comments from configured project authors, they may manage Issues. Code changes still require an explicit approval phrase in an Issue comment from a configured project author.
+- Includes server-side wrapper scripts in [`openclaw/`](openclaw/).
 
 **Setup:** see [OpenClaw GitHub Responder](docs/openclaw-responder.md).
-
-## Setting Up Claude Code OAuth Token
-
-1. Make sure Claude Code is up to date:
-   ```bash
-   claude update
-   ```
-2. Run the token setup command:
-   ```bash
-   claude setup-token
-   ```
-3. Authenticate with your Claude account in the browser
-4. Copy the token that is displayed
-5. In your repository, go to **Settings** → **Secrets and variables** → **Actions**
-6. Click **New repository secret**, name it `CLAUDE_CODE_OAUTH_TOKEN`, and paste the token
-
-> **Note:** This token works with a Claude Max subscription. You do not need a separate Anthropic API key.
 
 ## Setting Up Telegram Notifications
 
@@ -128,7 +94,7 @@ All workflows in this repository support [`workflow_call`](https://docs.github.c
 
 ```yaml
 # .github/workflows/global-workflows.yml
-name: Telegram / Stale Issues / Claude Triage
+name: Telegram / Stale Issues / OpenClaw
 
 on:
   issues:
@@ -159,19 +125,28 @@ jobs:
     uses: IliyaBrook/GitHub_workflows/.github/workflows/stale-issues.yml@master
     secrets: inherit
 
-  claude-issue-triage:
-    if: github.event_name == 'issues' && github.event.action == 'opened'
+  openclaw-issue-responder:
+    if: github.event_name == 'issues' || github.event_name == 'issue_comment'
     permissions:
       contents: read
       issues: write
-      id-token: write
-    uses: IliyaBrook/GitHub_workflows/.github/workflows/claude-issue-triage.yml@master
-    secrets: inherit
+    uses: IliyaBrook/GitHub_workflows/.github/workflows/openclaw-issue-responder.yml@master
+    with:
+      responder-script: /opt/openclaw/bin/openclaw-github-issue-responder
+
+  openclaw-discussion-responder:
+    if: github.event_name == 'discussion' || github.event_name == 'discussion_comment'
+    permissions:
+      contents: read
+      discussions: write
+    uses: IliyaBrook/GitHub_workflows/.github/workflows/openclaw-discussion-responder.yml@master
+    with:
+      responder-script: /opt/openclaw/bin/openclaw-github-discussion-responder
 ```
 
 The `secrets: inherit` directive passes your repository secrets to the called workflows automatically.
 
-> **Important:** You still need to add the required secrets (`TELEGRAM_CHAT_ID`, `TELEGRAM_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`) to **each repository** that uses these workflows. `secrets: inherit` forwards secrets from your repo to the reusable workflow — it does not pull them from this repository.
+> **Important:** You still need to add the required Telegram secrets (`TELEGRAM_CHAT_ID`, `TELEGRAM_TOKEN`) to **each repository** that uses Telegram notifications. `secrets: inherit` forwards secrets from your repo to the reusable workflow — it does not pull them from this repository.
 
 **Benefits of this approach:**
 - You only maintain one small file in your project

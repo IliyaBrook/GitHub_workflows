@@ -9,13 +9,15 @@ The flow is event-driven:
 3. The runner calls a local OpenClaw hook, usually `http://127.0.0.1:18789/hooks/agent`.
 4. OpenClaw reads the checked-out repository and posts a public reply when a code-aware answer is useful.
 
-The responder is designed for public support. It is read-only for public/non-approved actors. For Issues, Issue comments, Discussions, and Discussion comments from configured project authors, it can enter maintainer-issue-action mode to manage Issues. Code changes still require an explicit approval phrase in an Issue comment from a configured project author.
+The responder is designed for public support. It is read-only for public/non-approved actors. Issues and Issue comments are processed normally. Discussions and Discussion comments are processed only when the incoming body mentions `@brooks-assistant`; all other Discussion events are ignored before the local OpenClaw hook is called. For events from configured project authors, it can enter maintainer-issue-action mode to manage Issues. Code changes still require an explicit approval phrase in an Issue comment from a configured project author.
 
 ## Files
 
 - [`../.github/workflows/openclaw-discussion-responder.yml`](../.github/workflows/openclaw-discussion-responder.yml) - reusable workflow for Discussions.
 - [`../.github/workflows/openclaw-issue-responder.yml`](../.github/workflows/openclaw-issue-responder.yml) - reusable workflow for Issues.
-- [`../openclaw/openclaw-github-responder`](../openclaw/openclaw-github-responder) - server-side wrapper to install on the self-hosted runner host.
+- [`../openclaw/openclaw-github-issue-responder`](../openclaw/openclaw-github-issue-responder) - server-side wrapper for Issues.
+- [`../openclaw/openclaw-github-discussion-responder`](../openclaw/openclaw-github-discussion-responder) - server-side wrapper for Discussions.
+- [`../openclaw/openclaw-github-responder`](../openclaw/openclaw-github-responder) - compatibility dispatcher that routes to the Issue or Discussion wrapper based on the event payload.
 
 ## Server Setup
 
@@ -25,10 +27,12 @@ The runner host needs:
 - `gh` authenticated as the assistant GitHub account for posting replies.
 - OpenClaw Gateway running with hooks enabled.
 
-Install the wrapper on the same host where OpenClaw Gateway runs:
+Install the wrappers on the same host where OpenClaw Gateway runs:
 
 ```bash
 sudo install -m 755 openclaw/openclaw-github-responder /opt/openclaw/bin/openclaw-github-responder
+sudo install -m 755 openclaw/openclaw-github-issue-responder /opt/openclaw/bin/openclaw-github-issue-responder
+sudo install -m 755 openclaw/openclaw-github-discussion-responder /opt/openclaw/bin/openclaw-github-discussion-responder
 ```
 
 Enable OpenClaw hooks with a dedicated token. Example config shape:
@@ -97,7 +101,7 @@ jobs:
     uses: IliyaBrook/GitHub_workflows/.github/workflows/openclaw-issue-responder.yml@master
     with:
       runner-labels: '["self-hosted","openclaw"]'
-      responder-script: /opt/openclaw/bin/openclaw-github-responder
+      responder-script: /opt/openclaw/bin/openclaw-github-issue-responder
       bot-login: brooks-assistant
       assistant-name: Developer Assistant
       hook-url: http://127.0.0.1:18789/hooks/agent
@@ -107,12 +111,12 @@ jobs:
     if: github.event_name == 'discussion' || github.event_name == 'discussion_comment'
     permissions:
       contents: read
-      discussions: read
+      discussions: write
       issues: write
     uses: IliyaBrook/GitHub_workflows/.github/workflows/openclaw-discussion-responder.yml@master
     with:
       runner-labels: '["self-hosted","openclaw"]'
-      responder-script: /opt/openclaw/bin/openclaw-github-responder
+      responder-script: /opt/openclaw/bin/openclaw-github-discussion-responder
       bot-login: brooks-assistant
       approved-actor-logins: IliyaBrook
       assistant-name: Developer Assistant
@@ -125,7 +129,7 @@ jobs:
 | Input | Default | Description |
 |---|---|---|
 | `runner-labels` | `["self-hosted","openclaw"]` | JSON array for `runs-on`. Add host-specific labels if needed. |
-| `responder-script` | `/opt/openclaw/bin/openclaw-github-responder` | Absolute path to the wrapper on the runner host. |
+| `responder-script` | Issue workflow: `/opt/openclaw/bin/openclaw-github-issue-responder`; Discussion workflow: `/opt/openclaw/bin/openclaw-github-discussion-responder` | Absolute path to the wrapper on the runner host. The compatibility dispatcher path `/opt/openclaw/bin/openclaw-github-responder` still works for existing callers. |
 | `bot-login` | `brooks-assistant` | GitHub login of the assistant bot. Events from this actor are skipped. |
 | `assistant-name` | `Developer Assistant` | Public assistant name included in the prompt. |
 | `hook-url` | `http://127.0.0.1:18789/hooks/agent` | OpenClaw hook endpoint reachable from the runner host. |
@@ -157,7 +161,8 @@ The wrapper also accepts environment variables:
 - It checks the internet when current external facts are needed, preferring official sources for technical claims.
 - It ignores spam, greetings, pure thanks, unrelated messages, and messages where no answer is useful.
 - It does not implement code changes or manage Issues for unapproved actors by default. It may explain a plan and say changes need maintainer approval.
-- For Issues, Issue comments, Discussions, and Discussion comments from `approved-actor-logins`, it enters maintainer-issue-action mode.
+- Discussion events without `@brooks-assistant` in the incoming discussion body or discussion comment body are ignored before the OpenClaw hook is called.
+- For Issues, Issue comments, and mentioned Discussions/Discussion comments from `approved-actor-logins`, it enters maintainer-issue-action mode.
 - In maintainer-issue-action mode, it may create, close, reopen, label, and comment on GitHub Issues when requested. It must read the relevant issue or discussion thread first before issue closure or splitting work into new Issues. It must not modify files, commit, push, create branches, or create pull requests in this mode.
 - It enters approved-change mode only for issue comments from `approved-actor-logins` that contain an explicit approval phrase such as `approved`, `приступай`, `разрешаю`, or `утверждаю`.
 - In approved-change mode, it may make scoped code changes, commit and push to the default branch when allowed, create a branch and PR if the default branch push is rejected, update staging when the configured command can deploy the pushed change, and report the result back to GitHub.

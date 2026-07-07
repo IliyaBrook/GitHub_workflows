@@ -9,10 +9,10 @@ on:
         type: string
         default: '["self-hosted","openclaw"]'
       responder-script:
-        description: Absolute path to openclaw-github-responder on the runner host.
+        description: Absolute path to openclaw-github-discussion-responder on the runner host.
         required: false
         type: string
-        default: /opt/openclaw/bin/openclaw-github-responder
+        default: /opt/openclaw/bin/openclaw-github-discussion-responder
       bot-login:
         description: GitHub login used by the assistant bot; events from this actor are skipped.
         required: false
@@ -46,7 +46,7 @@ on:
 
 permissions:
   contents: read
-  discussions: read
+  discussions: write
   issues: write
 
 concurrency:
